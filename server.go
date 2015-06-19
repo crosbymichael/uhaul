@@ -42,12 +42,6 @@ func (s *server) do(method, url string) error {
 
 func (s *server) rsync(to *server) error {
 	return s.do("POST", "/rsync?ip="+to.IP)
-	/*
-		if err := command("rsync", "-az", "--delete", "root@"+s.IP+":/root/ioquake3/q3a/", "root@"+to.IP+":/root/ioquake3/q3a"); err != nil {
-			return err
-		}
-		return command("rsync", "-az", "--delete", "root@"+s.IP+":/root/ioquake3/checkpoint/", "root@"+to.IP+":/root/ioquake3/checkpoint")
-	*/
 }
 
 func (s *server) run() error {
