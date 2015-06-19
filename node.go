@@ -29,9 +29,9 @@ func restore(w http.ResponseWriter, r *http.Request) {
 	logrus.Info("starting restore")
 	done := make(chan error, 1)
 	go func() {
-		out, err := command("runc", "restore")
+		err := command("runc", "restore")
 		if err != nil {
-			logrus.Infof("%s", out)
+			logrus.Error(err)
 		}
 		done <- err
 	}()
@@ -76,11 +76,7 @@ func rsync(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no ip specified", http.StatusBadRequest)
 		return
 	}
-	if err := command("rsync", "-az", "--delete", "/root/ioquake3/q3a/", "root@"+ip+":/root/ioquake3/q3a"); err != nil {
-		httpError(w, err)
-		return
-	}
-	if err := command("rsync", "-az", "--delete", "/root/ioquake3/checkpoint/", "root@"+ip+":/root/ioquake3/checkpoint"); err != nil {
+	if err := command("rsync", "-az", "--delete", "/root/ioquake3/checkpoint", "/root/ioquake3/q3a", "root@"+ip+":/root/ioquake3/"); err != nil {
 		httpError(w, err)
 		return
 	}
