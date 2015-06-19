@@ -29,7 +29,10 @@ func restore(w http.ResponseWriter, r *http.Request) {
 	logrus.Info("starting restore")
 	done := make(chan error, 1)
 	go func() {
-		err := exec.Command("runc", "restore").Run()
+		out, err := command("runc", "restore")
+		if err != nil {
+			logrus.Infof("%s", out)
+		}
 		done <- err
 	}()
 	select {
