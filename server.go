@@ -189,7 +189,7 @@ func main() {
 	addr := ":8080"
 	h := mux.NewRouter()
 	h.HandleFunc("/", list).Methods("GET")
-	h.HandleFunc("/reset", start).Methods("POST")
+	h.HandleFunc("/reset", reset).Methods("POST")
 	h.HandleFunc("/start", start).Methods("POST")
 	if err := http.ListenAndServe(addr, h); err != nil {
 		logrus.Fatal(err)

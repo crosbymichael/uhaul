@@ -18,12 +18,12 @@ func httpError(w http.ResponseWriter, err error) {
 }
 
 func checkpoint(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("[+] Checkpoint container")
+	logrus.Warn("[+] Checkpoint container")
 	if activeCmd == nil {
 		logrus.Warnf("Checkpoint called without any active container")
 	}
 
-	logrus.Warn("Executing: runc checkpoint")
+	logrus.Info("Executing: runc checkpoint")
 	if err := exec.Command("runc", "checkpoint").Run(); err != nil {
 		logrus.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -34,7 +34,7 @@ func checkpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func restore(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("[+] Restoring container")
+	logrus.Warn("[+] Restoring container")
 	if activeCmd != nil {
 		logrus.Warnf("Restore called with an active container")
 	}
@@ -42,7 +42,7 @@ func restore(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("runc", "restore")
 	done := make(chan error, 1)
 	go func() {
-		logrus.Warn("Executing: runc checkpoint")
+		logrus.Info("Executing: runc checkpoint")
 		done <- cmd.Run()
 	}()
 	select {
@@ -60,7 +60,7 @@ func restore(w http.ResponseWriter, r *http.Request) {
 }
 
 func run(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("[+] Starting new container")
+	logrus.Warn("[+] Starting new container")
 	if activeCmd != nil {
 		logrus.Warnf("Run called with an active container")
 	}
@@ -68,7 +68,7 @@ func run(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("runc")
 	done := make(chan error, 1)
 	go func() {
-		logrus.Warn("Executing: runc")
+		logrus.Info("Executing: runc")
 		done <- cmd.Run()
 	}()
 	select {
@@ -100,12 +100,16 @@ func rsync(w http.ResponseWriter, r *http.Request) {
 }
 
 func reset(w http.ResponseWriter, r *http.Request) {
+	logrus.Warnf("[+] Resetting node (active command = %t)", activeCmd != nil)
 	if activeCmd != nil {
+		logrus.Info("Killing active process")
 		if err := activeCmd.Process.Kill(); err != nil {
-			logrus.Warnf("warning: error killing active process (%v)", err)
+			logrus.Warnf("Error killing active process: %v", err)
 		}
 		activeCmd = nil
 	}
+	logrus.Info("Removing container state")
+	os.RemoveAll("/var/run/ocf/ioquake3/")
 }
 
 func main() {
@@ -115,7 +119,7 @@ func main() {
 	addr := ":8080"
 	h := mux.NewRouter()
 	h.HandleFunc("/checkpoint", checkpoint).Methods("POST")
-	h.HandleFunc("/reset", checkpoint).Methods("POST")
+	h.HandleFunc("/reset", reset).Methods("POST")
 	h.HandleFunc("/restore", restore).Methods("POST")
 	h.HandleFunc("/run", run).Methods("POST")
 	h.HandleFunc("/rsync", rsync).Methods("POST")
