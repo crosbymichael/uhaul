@@ -14,11 +14,6 @@ var localAddr = "45.55.31.66"
 type server struct {
 	Active bool   `json:"active"`
 	IP     string `json:"ip"`
-	Ping   int    `json:"ping"`
-}
-
-func (s *server) ping() {
-
 }
 
 func (s *server) checkpoint() error {
@@ -57,6 +52,14 @@ func (s *server) restore() error {
 		return err
 	}
 	s.Active = true
+	return nil
+}
+
+func (s *server) reset() error {
+	if err := s.do("POST", "/reset"); err != nil {
+		return err
+	}
+	s.Active = false
 	return nil
 }
 
@@ -101,12 +104,6 @@ func command(p string, args ...string) error {
 
 type servers []*server
 
-func (ss servers) updatePing() {
-	for _, s := range ss {
-		s.ping()
-	}
-}
-
 func (ss servers) active() *server {
 	for _, s := range ss {
 		if s.Active {
@@ -128,12 +125,15 @@ func (ss servers) get(id string) *server {
 var activeServers servers
 
 func list(w http.ResponseWriter, r *http.Request) {
-	// update the ping before we return the server
-	activeServers.updatePing()
-
 	if err := json.NewEncoder(w).Encode(activeServers); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func reset(w http.ResponseWriter, r *http.Request) {
+	for _, server := range activeServers {
+		server.reset()
 	}
 }
 
@@ -189,6 +189,7 @@ func main() {
 	addr := ":8080"
 	h := mux.NewRouter()
 	h.HandleFunc("/", list).Methods("GET")
+	h.HandleFunc("/reset", start).Methods("POST")
 	h.HandleFunc("/start", start).Methods("POST")
 	if err := http.ListenAndServe(addr, h); err != nil {
 		logrus.Fatal(err)

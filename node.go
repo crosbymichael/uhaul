@@ -10,30 +10,40 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var activeCmd *exec.Cmd
+
 func httpError(w http.ResponseWriter, err error) {
 	logrus.Error(err)
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func checkpoint(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("starting checkpoint")
+	logrus.Info("[+] Checkpoint container")
+	if activeCmd == nil {
+		logrus.Warnf("Checkpoint called without any active container")
+	}
+
+	logrus.Warn("Executing: runc checkpoint")
 	if err := exec.Command("runc", "checkpoint").Run(); err != nil {
 		logrus.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	logrus.Info("finished checkpoint successfully")
+	logrus.Info("Container checkpointed successfully")
+	activeCmd = nil
 }
 
 func restore(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("starting restore")
+	logrus.Info("[+] Restoring container")
+	if activeCmd != nil {
+		logrus.Warnf("Restore called with an active container")
+	}
+
+	cmd := exec.Command("runc", "restore")
 	done := make(chan error, 1)
 	go func() {
-		err := command("runc", "restore")
-		if err != nil {
-			logrus.Error(err)
-		}
-		done <- err
+		logrus.Warn("Executing: runc checkpoint")
+		done <- cmd.Run()
 	}()
 	select {
 	case err := <-done:
@@ -43,17 +53,23 @@ func restore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case <-time.After(1700 * time.Millisecond):
-		logrus.Info("container restored successfully")
+		logrus.Info("Container restored successfully")
+		activeCmd = cmd
 		return
 	}
 }
 
 func run(w http.ResponseWriter, r *http.Request) {
-	logrus.Info("starting inital run")
+	logrus.Info("[+] Starting new container")
+	if activeCmd != nil {
+		logrus.Warnf("Run called with an active container")
+	}
+
+	cmd := exec.Command("runc")
 	done := make(chan error, 1)
 	go func() {
-		err := exec.Command("runc").Run()
-		done <- err
+		logrus.Warn("Executing: runc")
+		done <- cmd.Run()
 	}()
 	select {
 	case err := <-done:
@@ -63,10 +79,10 @@ func run(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case <-time.After(1700 * time.Millisecond):
-		logrus.Info("container started successfully")
+		logrus.Info("Container started successfully")
+		activeCmd = cmd
 		return
 	}
-
 }
 
 func rsync(w http.ResponseWriter, r *http.Request) {
@@ -76,19 +92,20 @@ func rsync(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no ip specified", http.StatusBadRequest)
 		return
 	}
-	if err := command("rsync", "-az", "--delete", "/root/ioquake3/checkpoint", "/root/ioquake3/q3a", "root@"+ip+":/root/ioquake3/"); err != nil {
+	logrus.Info("Transfering checkpoint data...")
+	if err := exec.Command("rsync", "-az", "--delete", "/root/ioquake3/checkpoint", "/root/ioquake3/q3a", "root@"+ip+":/root/ioquake3/").Run(); err != nil {
 		httpError(w, err)
 		return
 	}
 }
 
-func command(p string, args ...string) error {
-	out, err := exec.Command(p, args...).CombinedOutput()
-	if err != nil {
-		logrus.Infof("%s", out)
-		return err
+func reset(w http.ResponseWriter, r *http.Request) {
+	if activeCmd != nil {
+		if err := activeCmd.Process.Kill(); err != nil {
+			logrus.Warnf("warning: error killing active process (%v)", err)
+		}
+		activeCmd = nil
 	}
-	return nil
 }
 
 func main() {
@@ -98,9 +115,11 @@ func main() {
 	addr := ":8080"
 	h := mux.NewRouter()
 	h.HandleFunc("/checkpoint", checkpoint).Methods("POST")
+	h.HandleFunc("/reset", checkpoint).Methods("POST")
 	h.HandleFunc("/restore", restore).Methods("POST")
 	h.HandleFunc("/run", run).Methods("POST")
 	h.HandleFunc("/rsync", rsync).Methods("POST")
+	logrus.Warn("[*] Starting node")
 	if err := http.ListenAndServe(addr, h); err != nil {
 		logrus.Fatal(err)
 	}
