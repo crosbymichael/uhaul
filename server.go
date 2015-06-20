@@ -83,7 +83,8 @@ func configureNetwork(to *server) error {
 			return err
 		}
 	}
-	return command("conntrack", "-D", "-p", "udp")
+	command("conntrack", "-D", "-p", "udp")
+	return nil
 }
 
 func flushAll() error {
