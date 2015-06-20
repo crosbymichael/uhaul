@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -42,8 +43,12 @@ func restore(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("runc", "restore")
 	done := make(chan error, 1)
 	go func() {
-		logrus.Info("Executing: runc checkpoint")
-		done <- cmd.Run()
+		logrus.Info("Executing: runc restore")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			logrus.Error(string(out))
+		}
+		done <- err
 	}()
 	select {
 	case err := <-done:
@@ -103,9 +108,10 @@ func reset(w http.ResponseWriter, r *http.Request) {
 	logrus.Warnf("[+] Resetting node (active command = %t)", activeCmd != nil)
 	if activeCmd != nil {
 		logrus.Info("Killing active process")
-		if err := activeCmd.Process.Kill(); err != nil {
+		if err := activeCmd.Process.Signal(syscall.SIGTERM); err != nil {
 			logrus.Warnf("Error killing active process: %v", err)
 		}
+		activeCmd.Process.Wait()
 		activeCmd = nil
 	}
 	logrus.Info("Removing container state")
