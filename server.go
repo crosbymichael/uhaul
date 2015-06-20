@@ -126,6 +126,7 @@ func (ss servers) get(id string) *server {
 var activeServers servers
 
 func list(w http.ResponseWriter, r *http.Request) {
+	writeCORS(w)
 	if err := json.NewEncoder(w).Encode(activeServers); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -133,12 +134,14 @@ func list(w http.ResponseWriter, r *http.Request) {
 }
 
 func reset(w http.ResponseWriter, r *http.Request) {
+	writeCORS(w)
 	for _, server := range activeServers {
 		server.reset()
 	}
 }
 
 func start(w http.ResponseWriter, r *http.Request) {
+	writeCORS(w)
 	r.ParseForm()
 	ip := r.Form.Get("ip")
 	s := activeServers.get(ip)
@@ -185,6 +188,13 @@ func httpError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
+func writeCORS(w http.ResponseWriter) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, X-Registry-Auth")
+	w.Header().Add("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT, OPTIONS")
+
+}
+
 func main() {
 	flushAll()
 	addr := ":8080"
@@ -192,6 +202,9 @@ func main() {
 	h.HandleFunc("/", list).Methods("GET")
 	h.HandleFunc("/reset", reset).Methods("POST")
 	h.HandleFunc("/start", start).Methods("POST")
+	h.HandleFunc("", func(w http.ResponseWriter, r *http.Request) {
+		writeCORS(w)
+	}).Methods("OPTIONS")
 	if err := http.ListenAndServe(addr, h); err != nil {
 		logrus.Fatal(err)
 	}
