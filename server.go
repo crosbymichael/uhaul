@@ -198,6 +198,12 @@ func writeCORS(w http.ResponseWriter) {
 func main() {
 	flushAll()
 	addr := ":8080"
+	activeServers = servers{
+		{IP: "45.55.75.109"},
+		{IP: "178.62.204.196"},
+		{IP: "46.101.53.52"},
+		{IP: "128.199.162.252"},
+	}
 	h := mux.NewRouter()
 	h.HandleFunc("/", list).Methods("GET")
 	h.HandleFunc("/reset", reset).Methods("POST")
