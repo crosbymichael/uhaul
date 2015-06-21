@@ -44,11 +44,9 @@ func restore(w http.ResponseWriter, r *http.Request) {
 	done := make(chan error, 1)
 	go func() {
 		logrus.Info("Executing: runc restore")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			logrus.Error(string(out))
-		}
-		done <- err
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		done <- cmd.Run()
 	}()
 	select {
 	case err := <-done:
